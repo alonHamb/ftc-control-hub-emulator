@@ -6,3 +6,4 @@ pluginManagement {
 }
 
 rootProject.name = "ftc-control-hub-emulator"
+include ':demo'

@@ -1,0 +1,89 @@
+package emulator.config
+
+import emulator.hardware.HubId
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class RobotConfigDslTest {
+
+    private fun sampleConfig() = robotConfig {
+        motor("left_front_drive", port = 0)
+        motor("left_back_drive", port = 1)
+        servo("claw_servo", port = 0)
+        crServo("intake_cr_servo", port = 1)
+        touchSensor("arm_limit_switch", port = 0)
+        digitalChannel("beam_break", port = 1)
+        analogInput("arm_potentiometer", port = 0)
+        imu("imu", bus = 0)
+        i2cDevice("LynxI2cColorRangeSensor", "color_sensor", bus = 1)
+        device("SomeBrandNewSensorNobodyHasHeardOf", "mystery_i2c", bus = 2)
+        webcam("Webcam 1", serialNumber = "A1B2C3D4")
+
+        expansionHub {
+            motor("arm_motor", port = 0)
+            servo("turret_servo", port = 0)
+        }
+    }
+
+    @Test
+    fun `the DSL builds devices under the right hub without any XML`() {
+        val config = sampleConfig()
+
+        val leftFront = config.devices.single { it.name == "left_front_drive" }
+        assertEquals("Motor", leftFront.tagName)
+        assertEquals(HubId.CONTROL, leftFront.hub)
+        assertEquals(0, leftFront.port)
+
+        val armMotor = config.devices.single { it.name == "arm_motor" }
+        assertEquals(HubId.EXPANSION, armMotor.hub)
+
+        val mystery = config.devices.single { it.name == "mystery_i2c" }
+        assertEquals("SomeBrandNewSensorNobodyHasHeardOf", mystery.tagName)
+        assertEquals(2, mystery.bus)
+
+        assertEquals(listOf(ConfiguredWebcam("Webcam 1", "A1B2C3D4")), config.webcams)
+    }
+
+    @Test
+    fun `a config built in the DSL feeds buildSimulatedRobot directly, with no XML step at all`() {
+        val robot = buildSimulatedRobot(sampleConfig())
+
+        assertTrue(robot.motors.containsKey("left_front_drive"))
+        assertTrue(robot.motors.containsKey("arm_motor"))
+        assertTrue(robot.servos.containsKey("claw_servo"))
+        assertTrue(robot.imus.containsKey("imu"))
+        assertTrue(robot.i2cDevices.containsKey("mystery_i2c"))
+        assertTrue(robot.unrecognized.isEmpty())
+    }
+
+    @Test
+    fun `writing then parsing a DSL-built config round-trips to an equal RobotConfig`() {
+        val original = sampleConfig()
+
+        val xml = writeRobotConfigXml(original)
+        val roundTripped = parseRobotConfigXml(xml)
+
+        assertEquals(original, roundTripped)
+    }
+
+    @Test
+    fun `the generated XML is real REV Hardware Client shape -- Control Hub always at module port 173`() {
+        val xml = writeRobotConfigXml(sampleConfig())
+
+        assertTrue(xml.contains("""<Robot type="FirstInspires-FTC">"""))
+        assertTrue(xml.contains("""port="173""""))
+        assertTrue(xml.contains("<Motor"))
+        assertTrue(xml.contains("""name="left_front_drive""""))
+    }
+
+    @Test
+    fun `a config with no expansion hub devices doesn't invent an empty Expansion Hub module`() {
+        val config = robotConfig { motor("only_motor", port = 0) }
+
+        val xml = writeRobotConfigXml(config)
+
+        assertTrue("no LynxModule for an unused Expansion Hub", !xml.contains("Expansion Hub"))
+        assertEquals(config, parseRobotConfigXml(xml))
+    }
+}
