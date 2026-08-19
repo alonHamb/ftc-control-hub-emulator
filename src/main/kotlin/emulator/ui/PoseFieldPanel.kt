@@ -17,10 +17,18 @@ import javax.swing.JPanel
  * Top-down view of a standard 144in x 144in FTC field, origin at center, +x right, +y up, reading
  * the robot's pose from a caller-supplied [poseSupplier] instead of owning any simulation state
  * itself -- used by [RunnerShellApp] so this same view works for any pose source.
+ *
+ * [robotLengthIn] (drawn along the robot's forward axis, the yellow heading tick) and
+ * [robotWidthIn] (left-right) default to 18in x 18in to match [emulator.sim.MecanumGeometry]'s
+ * defaults, so the box drawn here lines up with where [emulator.sim.MecanumRobot] actually stops
+ * the robot at a field wall. Pass your own if you've customized [emulator.sim.MecanumGeometry].
  */
-class PoseFieldPanel(private val poseSupplier: () -> Pose) : JPanel() {
+class PoseFieldPanel(
+    private val poseSupplier: () -> Pose,
+    private val robotLengthIn: Double = 18.0,
+    private val robotWidthIn: Double = 18.0
+) : JPanel() {
     private val fieldSizeIn = 144.0
-    private val robotSizeIn = 18.0
     private val trail = ArrayDeque<Pose>()
     private val maxTrailPoints = 400
 
@@ -84,7 +92,7 @@ class PoseFieldPanel(private val poseSupplier: () -> Pose) : JPanel() {
         transform.translate(pose.x, pose.y)
         transform.rotate(pose.headingRad)
 
-        val body = transform.createTransformedShape(Rectangle2D.Double(-robotSizeIn / 2, -robotSizeIn / 2, robotSizeIn, robotSizeIn))
+        val body = transform.createTransformedShape(Rectangle2D.Double(-robotLengthIn / 2, -robotWidthIn / 2, robotLengthIn, robotWidthIn))
         g2.color = Color(60, 130, 220)
         g2.fill(body)
         g2.color = Color(150, 200, 255)
@@ -95,7 +103,7 @@ class PoseFieldPanel(private val poseSupplier: () -> Pose) : JPanel() {
         g2.draw(
             Line2D.Double(
                 transform.transform(Point2D.Double(0.0, 0.0), null),
-                transform.transform(Point2D.Double(robotSizeIn / 2 + 6, 0.0), null)
+                transform.transform(Point2D.Double(robotLengthIn / 2 + 6, 0.0), null)
             )
         )
     }

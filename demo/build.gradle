@@ -1,0 +1,26 @@
+//
+// A minimal runnable wiring of the library, for local development: launches RunnerShellApp
+// against a simulated mecanum drivetrain + one servo, driven by gamepad1/keyboard. Kept out of
+// the root project (the published JitPack artifact) so consumers never pull in a Swing entrypoint
+// -- run it with `./gradlew :demo:run`.
+//
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+application {
+    mainClass = 'emulator.demo.DemoMainKt'
+}
+
+dependencies {
+    implementation project(':')
+}

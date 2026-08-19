@@ -110,3 +110,65 @@ class SimServo(port: PortId, name: String, private val sweepSecondsFullRange: Do
 
     override fun activitySummary(): String = "pos=%.2f (target %.2f)".format(actualPosition, commandedPosition)
 }
+
+/**
+ * A generic digital I/O device -- stand-in for anything the real SDK exposes as a single boolean
+ * (touch sensors, limit switches, beam breaks, digital channels, simple on/off LEDs/indicators).
+ * Real digital devices vary in whether they're read-only (a sensor) or read/write (an output);
+ * [state] is just settable/gettable either way, and it's on your adapter -- see
+ * `emulator.config.RobotConfig` -- to only call the half of that it actually needs.
+ */
+class SimDigitalDevice(port: PortId, name: String) : SimDevice(port, name) {
+    var state: Boolean = false
+
+    override fun activitySummary(): String = "state=$state"
+}
+
+/**
+ * A generic analog input -- stand-in for potentiometers, optical distance sensors, and anything
+ * else the real SDK reads as a raw voltage. [voltage] defaults to a REV analog port's 0-3.3V
+ * range; set it directly to feed your adapter a fake reading (e.g. driven by [SimMotor.getVelocity]
+ * for a simulated potentiometer, or a fixed value for a simulated distance sensor).
+ */
+class SimAnalogDevice(port: PortId, name: String, private val maxVoltage: Double = 3.3) : SimDevice(port, name) {
+    var voltage: Double = 0.0
+        set(value) {
+            field = value.coerceIn(0.0, maxVoltage)
+        }
+
+    override fun activitySummary(): String = "voltage=%.2fV".format(voltage)
+}
+
+/**
+ * A generic IMU stand-in (REV's embedded IMU, an Adafruit BNO055, or anything else the real SDK
+ * reads orientation from) -- just a settable [headingRad], since that's what field-centric drive
+ * code actually needs. Drive it from your own simulated dynamics -- e.g. mirror
+ * [emulator.sim.MecanumRobot.pose]'s heading onto it in your `onTick`, the same way a real IMU
+ * would track the chassis's actual orientation.
+ */
+class SimImu(port: PortId, name: String) : SimDevice(port, name) {
+    var headingRad: Double = 0.0
+
+    override fun activitySummary(): String = "heading=%.1f°".format(Math.toDegrees(headingRad))
+}
+
+/**
+ * A catch-all stand-in for any I2C device this library has no specific physics for -- color
+ * sensors, distance sensors, compasses, and whatever new sensor a vendor ships next. Holds
+ * whatever named numeric readings your test/adapter chooses to set (e.g. `"distanceMm"`,
+ * `"red"`/`"green"`/`"blue"`, `"headingDeg"`) rather than modeling any particular sensor's real
+ * output shape, so a device type this library has never heard of still resolves to *something*
+ * instead of failing to simulate at all -- see `emulator.config.RobotConfig`.
+ */
+class SimI2cDevice(port: PortId, name: String) : SimDevice(port, name) {
+    private val readings = mutableMapOf<String, Double>()
+
+    fun setReading(key: String, value: Double) {
+        readings[key] = value
+    }
+
+    fun getReading(key: String): Double = readings[key] ?: 0.0
+
+    override fun activitySummary(): String =
+        if (readings.isEmpty()) "(no readings set)" else readings.entries.joinToString { "${it.key}=${it.value}" }
+}

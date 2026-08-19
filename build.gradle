@@ -30,6 +30,12 @@ dependencies {
     // Reads game controllers (XInput and, as a fallback, Windows' legacy joystick API) --
     // see emulator.input.XInputController / LegacyJoystickController.
     implementation 'net.java.dev.jna:jna:5.14.0'
+
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test {
+    useJUnit()
 }
 
 // Lets JitPack (https://jitpack.io) build and serve this as com.github.alonHamb:ftc-control-hub-emulator:<tag>

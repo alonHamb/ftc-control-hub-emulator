@@ -6,6 +6,8 @@ class BatteryModel(private val nominalVoltage: Double = 12.7, private val intern
         private set
 
     fun update(totalCurrentDrawAmps: Double) {
+        // 9.0V floor: roughly where a real 12V SLA pack is considered dead/brownout territory,
+        // so a stalled robot sags toward it instead of the model driving voltage to zero.
         voltage = (nominalVoltage - totalCurrentDrawAmps * internalResistanceOhms).coerceIn(9.0, nominalVoltage)
     }
 }
