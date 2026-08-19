@@ -11,7 +11,7 @@ plugins {
 }
 
 group = 'com.github.alonHamb'
-version = '1.0.0'
+version = '1.0.2'
 
 repositories {
     mavenCentral()
@@ -23,10 +23,6 @@ kotlin {
 
 java {
     withSourcesJar()
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-        JvmVendorSpec.matching("Temurin") // Change from JETBRAINS to TEMURIN
-    }
 }
 
 dependencies {
