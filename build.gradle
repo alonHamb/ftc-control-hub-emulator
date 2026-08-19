@@ -1,0 +1,42 @@
+//
+// FTC Control Hub Emulator
+//
+// A plain Kotlin/JVM library (no Android dependency): shared physics/hardware-primitive/UI/input
+// code for building a desktop emulator that drives real or simulated FTC OpMode-style code
+// without a physical robot. See README.md.
+
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '1.9.24'
+    id 'maven-publish'
+}
+
+group = 'com.github.alonHamb'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+kotlin {
+    jvmToolchain(17)
+}
+
+java {
+    withSourcesJar()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+    // Reads game controllers (XInput and, as a fallback, Windows' legacy joystick API) --
+    // see emulator.input.XInputController / LegacyJoystickController.
+    implementation 'net.java.dev.jna:jna:5.14.0'
+}
+
+// Lets JitPack (https://jitpack.io) build and serve this as com.github.alonHamb:ftc-control-hub-emulator:<tag>
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}
