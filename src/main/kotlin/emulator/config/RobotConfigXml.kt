@@ -10,6 +10,9 @@ import emulator.hardware.SimI2cDevice
 import emulator.hardware.SimImu
 import emulator.hardware.SimMotor
 import emulator.hardware.SimServo
+import emulator.hardware.SimUsbDevice
+import emulator.hardware.SimUsbSerialDevice
+import emulator.hardware.SimWebcam
 import emulator.ui.PortRowView
 import org.w3c.dom.Element
 import java.io.File
@@ -22,18 +25,27 @@ import org.xml.sax.InputSource
  * device element (`<Motor name="..." port="0" />`, `<LynxEmbeddedIMU name="..." bus="0" />`, ...)
  * before it's been matched to a simulated device type. [port] is set for hub-port devices (motors,
  * servos, digital, analog); [bus] is set for I2C-bus devices (color sensors, IMUs, ...); a device
- * can have neither if the file uses an attribute this parser doesn't recognize.
+ * can have neither if the file uses an attribute this parser doesn't recognize. [i2cAddress] is the
+ * optional `I2cAddress` attribute (hex like `"0x3c"` or decimal) some I2C device tags carry.
  */
 data class ConfiguredDevice(
     val tagName: String,
     val name: String,
     val hub: HubId,
     val port: Int?,
-    val bus: Int?
+    val bus: Int?,
+    val i2cAddress: Int? = null
 )
 
 /** A `<Webcam>` entry -- a USB device with no hub port, so it's tracked separately from everything else. */
 data class ConfiguredWebcam(val name: String, val serialNumber: String?)
+
+/**
+ * A `<UsbDevice>` entry -- this library's own escape hatch for a generic USB-serial peripheral (the
+ * real REV config format has no standard tag for these; only [ConfiguredWebcam] is standardized).
+ * Not a hub-port device, same as [ConfiguredWebcam].
+ */
+data class ConfiguredUsbSerialDevice(val name: String, val serialNumber: String?)
 
 /**
  * Everything parsed out of a hardware configuration XML file -- the same file the REV Hardware
@@ -41,7 +53,11 @@ data class ConfiguredWebcam(val name: String, val serialNumber: String?)
  * uploads to the Control Hub alongside your code. See [parseRobotConfigXml] to build one, and
  * [buildSimulatedRobot] to turn it into ready-to-use simulated devices.
  */
-data class RobotConfig(val devices: List<ConfiguredDevice>, val webcams: List<ConfiguredWebcam>)
+data class RobotConfig(
+    val devices: List<ConfiguredDevice>,
+    val webcams: List<ConfiguredWebcam>,
+    val usbSerialDevices: List<ConfiguredUsbSerialDevice> = emptyList()
+)
 
 /** A REV Control Hub's own embedded `LynxModule` is always configured at this address. */
 internal const val CONTROL_HUB_MODULE_PORT = "173"
@@ -65,6 +81,11 @@ fun parseRobotConfigXml(xml: String): RobotConfig {
 
     fun Element.attr(attrName: String): String? = if (hasAttribute(attrName)) getAttribute(attrName) else null
 
+    // Accepts the hex form REV Hardware Client writes ("0x3c") as well as a plain decimal string.
+    fun parseI2cAddress(raw: String?): Int? = raw?.let {
+        if (it.startsWith("0x", ignoreCase = true)) it.substring(2).toIntOrNull(16) else it.toIntOrNull()
+    }
+
     val devices = mutableListOf<ConfiguredDevice>()
     val moduleNodes = document.getElementsByTagName("LynxModule")
     for (m in 0 until moduleNodes.length) {
@@ -80,7 +101,8 @@ fun parseRobotConfigXml(xml: String): RobotConfig {
                 name = name,
                 hub = hub,
                 port = element.attr("port")?.toIntOrNull(),
-                bus = element.attr("bus")?.toIntOrNull()
+                bus = element.attr("bus")?.toIntOrNull(),
+                i2cAddress = parseI2cAddress(element.attr("I2cAddress"))
             )
         }
     }
@@ -93,7 +115,15 @@ fun parseRobotConfigXml(xml: String): RobotConfig {
         webcams += ConfiguredWebcam(name, element.attr("serialNumber"))
     }
 
-    return RobotConfig(devices, webcams)
+    val usbSerialDevices = mutableListOf<ConfiguredUsbSerialDevice>()
+    val usbDeviceNodes = document.getElementsByTagName("UsbDevice")
+    for (u in 0 until usbDeviceNodes.length) {
+        val element = usbDeviceNodes.item(u) as? Element ?: continue
+        val name = element.attr("name") ?: continue
+        usbSerialDevices += ConfiguredUsbSerialDevice(name, element.attr("serialNumber"))
+    }
+
+    return RobotConfig(devices, webcams, usbSerialDevices)
 }
 
 /** Reads and parses [file] -- see [parseRobotConfigXml]. */
@@ -129,8 +159,10 @@ private fun classify(device: ConfiguredDevice): DeviceCategory = when {
  * looks it up by -- [motors]/[servos] get this library's full simulated dynamics (see
  * `emulator.hardware.SimMotor`/`SimServo`); everything else gets a simpler stand-in you drive or
  * read directly (see `emulator.hardware.SimDigitalDevice`/`SimAnalogDevice`/`SimImu`/`SimI2cDevice`).
- * [unrecognized] lists entries this parser couldn't place at all (an out-of-range port/bus index,
- * usually) -- check it rather than assuming every device in your config file made it across.
+ * [webcams] and [usbSerialDevices] are USB devices -- see `emulator.hardware.SimUsbDevice` -- kept
+ * separate from [allDevices] since they aren't plugged into a hub port. [unrecognized] lists
+ * entries this parser couldn't place at all (an out-of-range port/bus index, usually) -- check it
+ * rather than assuming every device in your config file made it across.
  */
 class SimulatedRobot(
     val motors: Map<String, SimMotor>,
@@ -139,12 +171,16 @@ class SimulatedRobot(
     val analogDevices: Map<String, SimAnalogDevice>,
     val imus: Map<String, SimImu>,
     val i2cDevices: Map<String, SimI2cDevice>,
-    val webcams: List<ConfiguredWebcam>,
+    val webcams: Map<String, SimWebcam>,
+    val usbSerialDevices: Map<String, SimUsbSerialDevice>,
     val unrecognized: List<ConfiguredDevice>
 ) {
-    /** Every simulated hub-port device -- everything except [webcams], which aren't on a hub port. */
+    /** Every simulated hub-port device -- everything except USB devices, which aren't on a hub port. */
     val allDevices: List<SimDevice> =
         motors.values + servos.values + digitalDevices.values + analogDevices.values + imus.values + i2cDevices.values
+
+    /** Every simulated USB device -- [webcams] plus [usbSerialDevices]. */
+    val allUsbDevices: List<SimUsbDevice> = webcams.values + usbSerialDevices.values
 
     /** Advances every device's dynamics by [dt] seconds -- call once per tick, same as calling [SimDevice.update] on each yourself. */
     fun updateAll(dt: Double) = allDevices.forEach { it.update(dt) }
@@ -152,6 +188,11 @@ class SimulatedRobot(
     /** One [PortRowView] per device, ready to hand to `RunnerShellApp`'s `portRowsSupplier`. */
     fun toPortRows(): List<PortRowView> = allDevices.map { device ->
         PortRowView(device.port.hub.label, device.port.type.label, device.port.index, device.name) { device.activitySummary() }
+    }
+
+    /** One [PortRowView] per USB device -- "USB" in place of a hub, and an index within [allUsbDevices] in place of a port. */
+    fun toUsbRows(): List<PortRowView> = allUsbDevices.mapIndexed { index, device ->
+        PortRowView("USB", device.type.label, index, device.name) { device.activitySummary() }
     }
 }
 
@@ -180,12 +221,19 @@ fun buildSimulatedRobot(config: RobotConfig): SimulatedRobot {
                 DeviceCategory.DIGITAL -> digitalDevices[device.name] = SimDigitalDevice(PortId(device.hub, PortType.DIGITAL, device.port!!), device.name)
                 DeviceCategory.ANALOG -> analogDevices[device.name] = SimAnalogDevice(PortId(device.hub, PortType.ANALOG, device.port!!), device.name)
                 DeviceCategory.IMU -> imus[device.name] = SimImu(PortId(device.hub, PortType.I2C, device.bus ?: device.port ?: 0), device.name)
-                DeviceCategory.I2C -> i2cDevices[device.name] = SimI2cDevice(PortId(device.hub, PortType.I2C, device.bus ?: device.port ?: 0), device.name)
+                DeviceCategory.I2C -> i2cDevices[device.name] = SimI2cDevice(
+                    PortId(device.hub, PortType.I2C, device.bus ?: device.port ?: 0),
+                    device.name,
+                    device.i2cAddress ?: 0x00
+                )
                 DeviceCategory.UNKNOWN -> error("no attribute this parser recognizes")
             }
         }.isSuccess
         if (!placed) unrecognized += device
     }
 
-    return SimulatedRobot(motors, servos, digitalDevices, analogDevices, imus, i2cDevices, config.webcams, unrecognized)
+    val webcams = config.webcams.associate { it.name to SimWebcam(it.name, it.serialNumber) }
+    val usbSerialDevices = config.usbSerialDevices.associate { it.name to SimUsbSerialDevice(it.name, it.serialNumber) }
+
+    return SimulatedRobot(motors, servos, digitalDevices, analogDevices, imus, i2cDevices, webcams, usbSerialDevices, unrecognized)
 }

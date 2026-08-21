@@ -16,9 +16,10 @@ class RobotConfigDslTest {
         digitalChannel("beam_break", port = 1)
         analogInput("arm_potentiometer", port = 0)
         imu("imu", bus = 0)
-        i2cDevice("LynxI2cColorRangeSensor", "color_sensor", bus = 1)
+        i2cDevice("LynxI2cColorRangeSensor", "color_sensor", bus = 1, i2cAddress = 0x3c)
         device("SomeBrandNewSensorNobodyHasHeardOf", "mystery_i2c", bus = 2)
         webcam("Webcam 1", serialNumber = "A1B2C3D4")
+        usbSerialDevice("usb_bridge", serialNumber = "FT1234")
 
         expansionHub {
             motor("arm_motor", port = 0)
@@ -42,7 +43,11 @@ class RobotConfigDslTest {
         assertEquals("SomeBrandNewSensorNobodyHasHeardOf", mystery.tagName)
         assertEquals(2, mystery.bus)
 
+        val colorSensor = config.devices.single { it.name == "color_sensor" }
+        assertEquals(0x3c, colorSensor.i2cAddress)
+
         assertEquals(listOf(ConfiguredWebcam("Webcam 1", "A1B2C3D4")), config.webcams)
+        assertEquals(listOf(ConfiguredUsbSerialDevice("usb_bridge", "FT1234")), config.usbSerialDevices)
     }
 
     @Test
@@ -54,6 +59,9 @@ class RobotConfigDslTest {
         assertTrue(robot.servos.containsKey("claw_servo"))
         assertTrue(robot.imus.containsKey("imu"))
         assertTrue(robot.i2cDevices.containsKey("mystery_i2c"))
+        assertEquals(0x3c, robot.i2cDevices.getValue("color_sensor").i2cAddress)
+        assertTrue(robot.webcams.containsKey("Webcam 1"))
+        assertTrue(robot.usbSerialDevices.containsKey("usb_bridge"))
         assertTrue(robot.unrecognized.isEmpty())
     }
 

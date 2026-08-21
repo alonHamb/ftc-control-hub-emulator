@@ -21,7 +21,7 @@ private val SAMPLE_CONFIG_XML = """
           <DigitalChannel name="beam_break" port="1" />
           <AnalogInput name="arm_potentiometer" port="0" />
           <OpticalDistanceSensor name="ods_sensor" port="1" />
-          <LynxI2cColorRangeSensor name="color_sensor" bus="0" />
+          <LynxI2cColorRangeSensor name="color_sensor" bus="0" I2cAddress="0x3c" />
           <LynxEmbeddedIMU name="imu" bus="1" />
           <SomeBrandNewSensorNobodyHasHeardOf name="mystery_i2c" bus="2" />
           <SomeBrandNewLimitSwitch name="mystery_digital" port="6" />
@@ -33,6 +33,7 @@ private val SAMPLE_CONFIG_XML = """
         </LynxModule>
       </LynxUsbDevice>
       <Webcam name="Webcam 1" serialNumber="A1B2C3D4" />
+      <UsbDevice name="usb_bridge" serialNumber="FT1234" />
     </Robot>
 """.trimIndent()
 
@@ -55,7 +56,11 @@ class RobotConfigXmlTest {
         assertEquals(1, imu.bus)
         assertNull(imu.port)
 
+        val colorSensor = config.devices.single { it.name == "color_sensor" }
+        assertEquals(60, colorSensor.i2cAddress)
+
         assertEquals(listOf(ConfiguredWebcam("Webcam 1", "A1B2C3D4")), config.webcams)
+        assertEquals(listOf(ConfiguredUsbSerialDevice("usb_bridge", "FT1234")), config.usbSerialDevices)
     }
 
     @Test
@@ -73,8 +78,12 @@ class RobotConfigXmlTest {
         assertTrue("imu should be a SimImu", robot.imus.containsKey("imu"))
         assertTrue("color_sensor should fall back to the generic I2C stand-in", robot.i2cDevices.containsKey("color_sensor"))
         assertTrue("distance_sensor (on the expansion hub) should also resolve", robot.i2cDevices.containsKey("distance_sensor"))
+        assertEquals("the parsed I2cAddress should carry through to the SimI2cDevice", 0x3c, robot.i2cDevices.getValue("color_sensor").i2cAddress)
 
-        assertEquals(listOf(ConfiguredWebcam("Webcam 1", "A1B2C3D4")), robot.webcams)
+        assertTrue("Webcam 1 should be a live SimWebcam", robot.webcams.containsKey("Webcam 1"))
+        assertEquals("A1B2C3D4", robot.webcams.getValue("Webcam 1").serialNumber)
+        assertTrue("usb_bridge should be a live SimUsbSerialDevice", robot.usbSerialDevices.containsKey("usb_bridge"))
+        assertEquals("FT1234", robot.usbSerialDevices.getValue("usb_bridge").serialNumber)
     }
 
     @Test

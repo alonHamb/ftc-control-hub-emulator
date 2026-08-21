@@ -3,8 +3,10 @@ package emulator.demo
 import emulator.hardware.HubId
 import emulator.hardware.PortId
 import emulator.hardware.PortType
+import emulator.hardware.SimI2cDevice
 import emulator.hardware.SimMotor
 import emulator.hardware.SimServo
+import emulator.hardware.SimWebcam
 import emulator.sim.BatteryModel
 import emulator.sim.MecanumRobot
 import emulator.sim.Pose
@@ -24,8 +26,10 @@ fun main() {
     val backLeft = SimMotor(PortId(HubId.CONTROL, PortType.MOTOR, 2), "back left motor")
     val backRight = SimMotor(PortId(HubId.CONTROL, PortType.MOTOR, 3), "back right motor")
     val claw = SimServo(PortId(HubId.CONTROL, PortType.SERVO, 0), "claw servo")
+    val colorSensor = SimI2cDevice(PortId(HubId.CONTROL, PortType.I2C, 0), "color sensor", i2cAddress = 0x3c)
+    val webcam = SimWebcam("Webcam 1", serialNumber = "A1B2C3D4")
     val motors = listOf(frontLeft, frontRight, backLeft, backRight)
-    val devices = motors + claw
+    val devices = motors + claw + colorSensor
 
     val drivetrain = MecanumRobot(frontLeft, frontRight, backLeft, backRight)
     val battery = BatteryModel()
@@ -38,7 +42,9 @@ fun main() {
         PortRowView(HubId.CONTROL.label, PortType.MOTOR.label, 1, frontRight.name) { frontRight.activitySummary() },
         PortRowView(HubId.CONTROL.label, PortType.MOTOR.label, 2, backLeft.name) { backLeft.activitySummary() },
         PortRowView(HubId.CONTROL.label, PortType.MOTOR.label, 3, backRight.name) { backRight.activitySummary() },
-        PortRowView(HubId.CONTROL.label, PortType.SERVO.label, 0, claw.name) { claw.activitySummary() }
+        PortRowView(HubId.CONTROL.label, PortType.SERVO.label, 0, claw.name) { claw.activitySummary() },
+        PortRowView(HubId.CONTROL.label, PortType.I2C.label, 0, colorSensor.name) { colorSensor.activitySummary() },
+        PortRowView("USB", "Webcam", 0, webcam.name) { webcam.activitySummary() }
     )
 
     runRunnerShellAndBlock(
@@ -78,6 +84,13 @@ fun main() {
             } else {
                 motors.forEach { it.setPower(0.0) }
             }
+
+            // Stands in for a real color/distance sensor's driver: something in the claw's grip
+            // reads close-and-colored, an empty claw reads far-and-dark -- a real adapter would
+            // read colorSensor.getReading(...) the same way here that a real ColorRangeSensor's
+            // driver would read its own register file.
+            colorSensor.setReading("distanceMm", if (clawOpen) 200.0 else 15.0)
+            colorSensor.setReading("red", if (clawOpen) 0.0 else 180.0)
 
             devices.forEach { it.update(dtSeconds) }
             drivetrain.update(dtSeconds)

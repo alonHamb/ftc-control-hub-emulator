@@ -159,9 +159,19 @@ class SimImu(port: PortId, name: String) : SimDevice(port, name) {
  * `"red"`/`"green"`/`"blue"`, `"headingDeg"`) rather than modeling any particular sensor's real
  * output shape, so a device type this library has never heard of still resolves to *something*
  * instead of failing to simulate at all -- see `emulator.config.RobotConfig`.
+ *
+ * Also models the register-addressed byte protocol real I2C devices actually speak on the wire --
+ * [i2cAddress] plus a 256-byte register file you [readRegister]/[writeRegister] against -- for
+ * adapters ported from the real SDK's lower-level `I2cDeviceSynchSimple`-shaped interfaces rather
+ * than a vendor-specific sensor class. The two APIs are independent; use whichever matches what
+ * your adapter needs.
  */
-class SimI2cDevice(port: PortId, name: String) : SimDevice(port, name) {
+class SimI2cDevice(port: PortId, name: String, val i2cAddress: Int = 0x00) : SimDevice(port, name) {
     private val readings = mutableMapOf<String, Double>()
+    private val registers = ByteArray(256)
+
+    /** Whether the bus is currently talking to this device -- mirrors `I2cDevice.engage()`/`disengage()`. */
+    var engaged: Boolean = true
 
     fun setReading(key: String, value: Double) {
         readings[key] = value
@@ -169,6 +179,22 @@ class SimI2cDevice(port: PortId, name: String) : SimDevice(port, name) {
 
     fun getReading(key: String): Double = readings[key] ?: 0.0
 
-    override fun activitySummary(): String =
-        if (readings.isEmpty()) "(no readings set)" else readings.entries.joinToString { "${it.key}=${it.value}" }
+    /** Writes [data] into the register file starting at [register], clamped to the 256-byte range. */
+    fun writeRegister(register: Int, data: ByteArray) {
+        for (i in data.indices) {
+            val address = register + i
+            if (address in registers.indices) registers[address] = data[i]
+        }
+    }
+
+    /** Reads [length] bytes from the register file starting at [register]; out-of-range bytes read as 0. */
+    fun readRegister(register: Int, length: Int): ByteArray =
+        ByteArray(length) { i -> registers.getOrElse(register + i) { 0 } }
+
+    override fun activitySummary(): String {
+        val addr = "addr=0x%02X".format(i2cAddress)
+        val state = if (engaged) "engaged" else "disengaged"
+        val readingsText = if (readings.isEmpty()) "(no readings set)" else readings.entries.joinToString { "${it.key}=${it.value}" }
+        return "$addr  $state  $readingsText"
+    }
 }

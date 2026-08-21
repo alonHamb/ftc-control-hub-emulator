@@ -27,12 +27,17 @@ open class HubDeviceBuilder internal constructor(private val hub: HubId) {
     /** [tagName] defaults to REV's own embedded IMU; pass e.g. `"AdafruitBNO055IMU"` for a different one. */
     fun imu(name: String, bus: Int, tagName: String = "LynxEmbeddedIMU") = device(tagName, name, bus = bus)
 
-    /** Any other I2C sensor -- a color/distance/compass sensor, or anything a vendor ships next. */
-    fun i2cDevice(tagName: String, name: String, bus: Int) = device(tagName, name, bus = bus)
+    /**
+     * Any other I2C sensor -- a color/distance/compass sensor, or anything a vendor ships next.
+     * [i2cAddress] is optional -- pass it (e.g. `0x3c`) if your adapter needs to see the device's
+     * real I2C address on `SimI2cDevice.i2cAddress`; most adapters don't need it.
+     */
+    fun i2cDevice(tagName: String, name: String, bus: Int, i2cAddress: Int? = null) =
+        device(tagName, name, bus = bus, i2cAddress = i2cAddress)
 
     /** The escape hatch every named function above is built on -- use this for any tag they don't cover. */
-    fun device(tagName: String, name: String, port: Int? = null, bus: Int? = null) {
-        devices += ConfiguredDevice(tagName, name, hub, port, bus)
+    fun device(tagName: String, name: String, port: Int? = null, bus: Int? = null, i2cAddress: Int? = null) {
+        devices += ConfiguredDevice(tagName, name, hub, port, bus, i2cAddress)
     }
 }
 
@@ -47,6 +52,7 @@ open class HubDeviceBuilder internal constructor(private val hub: HubId) {
 class RobotConfigBuilder internal constructor() : HubDeviceBuilder(HubId.CONTROL) {
     private var expansionDevices: List<ConfiguredDevice> = emptyList()
     private val webcams = mutableListOf<ConfiguredWebcam>()
+    private val usbSerialDevices = mutableListOf<ConfiguredUsbSerialDevice>()
 
     fun expansionHub(block: HubDeviceBuilder.() -> Unit) {
         expansionDevices = HubDeviceBuilder(HubId.EXPANSION).apply(block).devices
@@ -56,7 +62,12 @@ class RobotConfigBuilder internal constructor() : HubDeviceBuilder(HubId.CONTROL
         webcams += ConfiguredWebcam(name, serialNumber)
     }
 
-    internal fun build(): RobotConfig = RobotConfig(devices + expansionDevices, webcams)
+    /** A generic USB-serial peripheral -- see [ConfiguredUsbSerialDevice]. */
+    fun usbSerialDevice(name: String, serialNumber: String? = null) {
+        usbSerialDevices += ConfiguredUsbSerialDevice(name, serialNumber)
+    }
+
+    internal fun build(): RobotConfig = RobotConfig(devices + expansionDevices, webcams, usbSerialDevices)
 }
 
 /**

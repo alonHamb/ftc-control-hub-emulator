@@ -51,7 +51,9 @@ CombinedGamepadInput                  RunnerShellApp (the Swing shell)
 - **`emulator.hardware`** -- `SimMotor`/`SimServo`/`SimDigitalDevice`/`SimAnalogDevice`/`SimImu`/
   `SimI2cDevice`: simulated devices with realistic dynamics where it matters (motor/servo), meant
   to back adapters implementing a real hardware SDK's device interfaces; and `PortId`/`PortType`/
-  `HubId` for describing hub ports the way a real robot's wiring would.
+  `HubId` for describing hub ports the way a real robot's wiring would. `SimWebcam`/
+  `SimUsbSerialDevice` model USB devices the same way, identified by serial number rather than a
+  hub port.
 - **`emulator.config`** -- your robot's wiring, as one `RobotConfig`: either `robotConfig { ... }`,
   a small Kotlin DSL you write once with no XML involved, or `parseRobotConfigXml` reading the
   *same* hardware configuration file your project uploads to a real Control Hub. Either way,
@@ -101,7 +103,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'com.github.alonHamb:ftc-control-hub-emulator:1.0.2'
+    testImplementation 'com.github.alonHamb:ftc-control-hub-emulator:v1.0.3'
 }
 ```
 
@@ -161,7 +163,19 @@ drives directly:
 | `SimDigitalDevice` | Touch sensors, limit switches, beam breaks, digital channels, simple on/off LEDs | A single settable/gettable `state: Boolean`. |
 | `SimAnalogDevice` | Potentiometers, optical distance sensors, anything read as a raw voltage | A settable/gettable `voltage: Double` (0-3.3V by default). |
 | `SimImu` | REV's embedded IMU, a BNO055, or any other orientation sensor | A settable/gettable `headingRad: Double` -- wire it to `MecanumRobot.pose.headingRad` in your `onTick` if you want it to track the simulated chassis. |
-| `SimI2cDevice` | Any I2C sensor this library has no specific model for (color, distance, compass, ...) | Free-form named readings via `setReading(key, value)`/`getReading(key)`, e.g. `setReading("distanceMm", 125.0)`. |
+| `SimI2cDevice` | Any I2C sensor this library has no specific model for (color, distance, compass, ...) | Free-form named readings via `setReading(key, value)`/`getReading(key)`, e.g. `setReading("distanceMm", 125.0)`, **and** a real register-addressed byte protocol -- `i2cAddress: Int`, `engaged: Boolean`, `writeRegister(register, data)`/`readRegister(register, length)` against a 256-byte register file -- for adapters ported from the real SDK's `I2cDeviceSynchSimple`-shaped interfaces. Use whichever half matches your adapter; they're independent. |
+
+#### USB devices
+
+Two more classes -- `SimWebcam` and `SimUsbSerialDevice` -- model devices connected over USB rather
+than plugged into a hub port. They share a `SimUsbDevice` base (`connected: Boolean`, plus
+`connect()`/`disconnect()` for simulating hotplug) instead of `SimDevice`, since a USB device is
+identified by serial number, not a `PortId`:
+
+| Type | Stands in for | Shape |
+|---|---|---|
+| `SimWebcam` | A USB webcam | Identity (`name`, `serialNumber`) and `connected` state only -- frames aren't modeled; feed your own fake frames through whatever vision-pipeline adapter you write. |
+| `SimUsbSerialDevice` | A generic USB-serial peripheral (an FTDI/CP210x bridge, a non-REV USB sensor or actuator) | Byte-stream I/O: `write(data)`/`lastWrite()` for what your OpMode sent, `feedIncoming(data)`/`read(maxBytes)`/`bytesAvailable()` for what it receives. |
 
 ### `emulator.config` -- your hardware configuration
 
@@ -170,8 +184,10 @@ configuration XML file -- the exact file the REV Hardware Client / Driver Statio
 you configure your real robot, normally found in your TeamCode module at
 `src/main/res/xml/<config name>.xml`, and the same one your project uploads to the Control Hub
 alongside your code -- into a `RobotConfig`: a plain list of every `<LynxModule>` device (which
-hub, name, tag, and port or I2C bus) plus every `<Webcam>`. It doesn't care whether it recognizes a
-given tag -- everything in the file comes through, matched or not.
+hub, name, tag, and port or I2C bus -- plus an optional `I2cAddress` attribute like `"0x3c"` some
+I2C tags carry) plus every `<Webcam>` and `<UsbDevice>` (this library's own tag for a generic
+USB-serial peripheral -- real REV config files only standardize `<Webcam>` for USB). It doesn't
+care whether it recognizes a given tag -- everything in the file comes through, matched or not.
 
 **`buildSimulatedRobot(config: RobotConfig)`** turns that into a `SimulatedRobot`: maps of `name ->`
 simulated device, one map per category, matched by tag name against real REV Hardware Client
@@ -184,9 +200,10 @@ exports:
 | `TouchSensor`, `DigitalChannel`, `DigitalDevice`, `REV_LED`, `RevBlinkinLedDriver` | `digitalDevices: Map<String, SimDigitalDevice>` | |
 | `AnalogInput`, `OpticalDistanceSensor` | `analogDevices: Map<String, SimAnalogDevice>` | |
 | `LynxEmbeddedIMU`, `BNO055IMU`, `AdafruitBNO055IMU`, `IMU` | `imus: Map<String, SimImu>` | |
-| Anything else with a `bus` attribute | `i2cDevices: Map<String, SimI2cDevice>` | Covers every I2C sensor tag this library doesn't specifically recognize -- `LynxI2cColorRangeSensor`, `RevTOFDistanceSensor`, a brand-new vendor sensor released tomorrow, all land here. |
+| Anything else with a `bus` attribute | `i2cDevices: Map<String, SimI2cDevice>` | Covers every I2C sensor tag this library doesn't specifically recognize -- `LynxI2cColorRangeSensor`, `RevTOFDistanceSensor`, a brand-new vendor sensor released tomorrow, all land here. An `I2cAddress` attribute, if present, carries through to `SimI2cDevice.i2cAddress`. |
 | Anything else with a `port` attribute | `digitalDevices` | Same reasoning: an unrecognized hub-port peripheral is more often digital than not. |
-| `Webcam` | `webcams: List<ConfiguredWebcam>` | Name + serial number only -- not a hub-port device, so not a `SimDevice`; feed your own fake frames through whatever vision-pipeline adapter you write. |
+| `Webcam` | `webcams: Map<String, SimWebcam>` | A live USB device (see [USB devices](#usb-devices) above) -- not a hub-port device, so kept out of `allDevices`. |
+| `UsbDevice` | `usbSerialDevices: Map<String, SimUsbSerialDevice>` | This library's own tag for a generic USB-serial peripheral -- same USB-device treatment as `Webcam`. |
 
 **Nothing from your config file is silently dropped.** A tag this parser has genuinely never seen
 still resolves to *some* simulated device (by whether it has a `port` or a `bus`, per the table
@@ -195,9 +212,11 @@ library was never specifically taught about. The only way a device doesn't make 
 its `port`/`bus` index is out of range for its slot (`SimulatedRobot.unrecognized` lists those --
 check it, since that usually means a real config-file problem worth knowing about).
 
-`SimulatedRobot.allDevices` (every device across every map, excluding webcams), `updateAll(dt)`
-(calls `update(dt)` on all of them), and `toPortRows()` (builds the whole port monitor's
-`List<PortRowView>` for you) save you from wiring each category up by hand.
+`SimulatedRobot.allDevices` (every hub-port device across every map, excluding USB devices),
+`updateAll(dt)` (calls `update(dt)` on all of them), and `toPortRows()` (builds the whole port
+monitor's `List<PortRowView>` for you) save you from wiring each category up by hand.
+`SimulatedRobot.allUsbDevices` (`webcams` plus `usbSerialDevices`) and `toUsbRows()` do the same
+for USB devices, kept separate since they aren't on a hub port.
 
 #### Defining your wiring in code instead of XML
 
@@ -219,15 +238,19 @@ val robotMap = robotConfig {
     }
 
     webcam("Webcam 1", serialNumber = "A1B2C3D4")
+    usbSerialDevice("usb_bridge", serialNumber = "FT1234")
 }
 ```
 
 Devices declared at the top level are on the Control Hub; `expansionHub { ... }` opens the same set
 of functions for a second hub. `motor`/`servo`/`crServo`/`touchSensor`/`digitalChannel`/
-`analogInput`/`imu` cover the common cases; `i2cDevice(tagName, name, bus)` and the more general
-`device(tagName, name, port, bus)` are the same escape hatch `buildSimulatedRobot` itself relies on
--- any tag name REV Hardware Client would recognize works here too, even ones this library has no
-specific simulated behavior for.
+`analogInput`/`imu` cover the common cases; `i2cDevice(tagName, name, bus, i2cAddress = null)` and
+the more general `device(tagName, name, port, bus, i2cAddress)` are the same escape hatch
+`buildSimulatedRobot` itself relies on -- any tag name REV Hardware Client would recognize works
+here too, even ones this library has no specific simulated behavior for. `webcam(name,
+serialNumber)` and `usbSerialDevice(name, serialNumber)` aren't hub-scoped -- USB devices connect
+directly, not through either hub -- so they're available at the top level only, same as in a real
+config file.
 
 Feed `robotMap` straight to `buildSimulatedRobot(robotMap)` for the emulator -- no XML step
 involved at all. **`writeRobotConfigXml(robotMap)`** (or the `File` overload, which also creates
@@ -363,7 +386,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation 'com.github.alonHamb:ftc-control-hub-emulator:1.0.2'
+    testImplementation 'com.github.alonHamb:ftc-control-hub-emulator:v1.0.3'
 }
 ```
 
@@ -553,6 +576,16 @@ class EmulatedTouchSensor(private val sim: SimDigitalDevice) : TouchSensor {
 An `IMU` adapter reads `sim.headingRad` (converting units/axes as your SDK version's `IMU`
 interface expects); an `AnalogInput` adapter reads `sim.voltage`; a color/distance/other I2C sensor
 adapter reads whichever `sim.getReading("...")` keys you've decided to drive from your test code.
+If your adapter instead implements a lower-level interface like `I2cDeviceSynchSimple` (`read`/
+`write`/`getI2cAddress`), delegate straight to `sim.readRegister(register, length)`/
+`sim.writeRegister(register, data)`/`sim.i2cAddress` -- same device, whichever half of its API your
+adapter needs.
+
+A `CameraName`/`WebcamName` adapter can resolve against `SimulatedRobot.webcams` by name the same
+way `HardwareMap.get(...)` resolves hub-port devices -- `sim.connected` tells you whether to hand
+back real (fake) frames or simulate the camera being unplugged. A `SerialPort`-shaped adapter over
+a non-REV USB peripheral reads `SimUsbSerialDevice.read(maxBytes)`/`bytesAvailable()` and writes
+via `write(data)`, backed by `SimulatedRobot.usbSerialDevices`.
 
 (If your OpMode reads bulk hub data or battery voltage through `LynxModule`, the same pattern
 applies -- fake the smaller delegate interface it actually calls into rather than the whole class.
@@ -621,14 +654,20 @@ adapters) on top of that same shape in your own TeamCode module to drive your re
   time of a real Driver Station -- fine for watching behavior, not for timing-sensitive tuning.
 - `SimMotor.zeroPowerBehavior` is stored but doesn't currently change simulated dynamics (braking
   vs. coasting to a stop look the same).
-- `SimDigitalDevice`/`SimAnalogDevice`/`SimImu`/`SimI2cDevice` ([`emulator.config`](#emulatorconfig----your-hardware-configuration))
-  have no dynamics of their own -- they're values *you* drive from your test code (or from
-  `MecanumRobot`, for the IMU), not physically simulated sensors. "Supported" means your config
-  file's device resolves to something you can wire up, not that its real-world behavior is modeled.
+- `SimDigitalDevice`/`SimAnalogDevice`/`SimImu`/`SimI2cDevice`/`SimWebcam`/`SimUsbSerialDevice`
+  ([`emulator.config`](#emulatorconfig----your-hardware-configuration)) have no dynamics of their
+  own -- they're values *you* drive from your test code (or from `MecanumRobot`, for the IMU), not
+  physically simulated sensors. "Supported" means your config file's device resolves to something
+  you can wire up, not that its real-world behavior is modeled. `SimI2cDevice`'s register file has
+  no per-address read/write semantics either -- it's a flat byte array, not a model of any
+  particular sensor's real register map. `SimWebcam` doesn't produce frames, and `SimUsbSerialDevice`
+  doesn't model real USB-serial framing/timing, just a byte queue.
 - The config-XML tag classification (`emulator.config`) is a best-effort match against known REV
   Hardware Client tag names, falling back to "has a `bus`? I2C. Has a `port`? digital." for
   anything it doesn't recognize -- it can't know a genuinely novel device's actual behavior, only
   give it a shape to be driven through.
+- USB device *hotplug* is manual (`connect()`/`disconnect()`) -- there's no automatic
+  disconnect/reconnect simulation, timing, or enumeration order to match a real OS's USB stack.
 - `writeRobotConfigXml` always writes an Expansion Hub (when your config has one) at module address
   `2`, the value seen in every real REV Hardware Client export checked against this library. If
   your real robot's Expansion Hub was assigned a different address, edit the generated file's

@@ -45,6 +45,7 @@ fun writeRobotConfigXml(config: RobotConfig): String {
             deviceElement.setAttribute("name", configuredDevice.name)
             configuredDevice.port?.let { deviceElement.setAttribute("port", it.toString()) }
             configuredDevice.bus?.let { deviceElement.setAttribute("bus", it.toString()) }
+            configuredDevice.i2cAddress?.let { deviceElement.setAttribute("I2cAddress", "0x%02x".format(it)) }
             module.appendChild(deviceElement)
         }
         usbDevice.appendChild(module)
@@ -59,6 +60,13 @@ fun writeRobotConfigXml(config: RobotConfig): String {
         webcamElement.setAttribute("name", webcam.name)
         webcam.serialNumber?.let { webcamElement.setAttribute("serialNumber", it) }
         robot.appendChild(webcamElement)
+    }
+
+    for (usbSerialDevice in config.usbSerialDevices) {
+        val usbDeviceElement = document.createElement("UsbDevice")
+        usbDeviceElement.setAttribute("name", usbSerialDevice.name)
+        usbSerialDevice.serialNumber?.let { usbDeviceElement.setAttribute("serialNumber", it) }
+        robot.appendChild(usbDeviceElement)
     }
 
     val transformer = TransformerFactory.newInstance().newTransformer().apply {
