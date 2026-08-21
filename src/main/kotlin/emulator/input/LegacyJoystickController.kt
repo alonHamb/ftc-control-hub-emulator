@@ -162,9 +162,17 @@ class LegacyJoystickController(private val deviceId: Int) {
 
         return GamepadSnapshot(
             leftStickX = normalizeAxis(info.dwXpos, caps.wXmin, caps.wXmax),
-            leftStickY = normalizeAxis(info.dwYpos, caps.wYmin, caps.wYmax, invert = true),
+            // Not inverted: joyGetPosEx's Y axis already reports the low end of the calibrated
+            // range (dwYpos near wYmin) when the stick is pushed up/forward, same polarity as
+            // DirectInput's documented lY convention -- which already matches "FTC convention:
+            // stick up is negative" (see XInputController/KeyTracker) with no extra inversion
+            // needed. The previous `invert = true` here double-inverted it, so forward/back read
+            // backwards for controllers read through this legacy path (confirmed against a real
+            // Xbox controller, which Windows routes through this API rather than XInput on some
+            // systems/drivers).
+            leftStickY = normalizeAxis(info.dwYpos, caps.wYmin, caps.wYmax),
             rightStickX = if (hasRightStick) normalizeAxis(info.dwZpos, caps.wZmin, caps.wZmax) else 0f,
-            rightStickY = if (hasRightStick) normalizeAxis(info.dwRpos, caps.wRmin, caps.wRmax, invert = true) else 0f,
+            rightStickY = if (hasRightStick) normalizeAxis(info.dwRpos, caps.wRmin, caps.wRmax) else 0f,
             leftTrigger = if (hasTriggerAxes) normalizeTrigger(info.dwUpos, caps.wUmin, caps.wUmax) else 0f,
             rightTrigger = if (hasTriggerAxes) normalizeTrigger(info.dwVpos, caps.wVmin, caps.wVmax) else 0f,
             a = button(aBit),
