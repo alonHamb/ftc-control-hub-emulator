@@ -66,6 +66,7 @@ class RunnerShellApp(
     private val stateLabel = JLabel("State: STOPPED")
     private val batteryLabel = JLabel("Battery: -- V")
     private val gamepadSourceLabel = JLabel("Gamepad 1: Keyboard   Gamepad 2: None")
+    private val tickTimer = Timer(TICK_MS) { tick() }
 
     init {
         defaultCloseOperation = WindowConstants.DO_NOTHING_ON_CLOSE
@@ -86,6 +87,7 @@ class RunnerShellApp(
 
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(e: WindowEvent) {
+                tickTimer.stop()
                 onStop()
                 dispose()
                 onClosed()
@@ -94,7 +96,7 @@ class RunnerShellApp(
 
         pack()
         setLocationRelativeTo(null)
-        Timer(TICK_MS) { tick() }.start()
+        tickTimer.start()
         requestFocusInWindow()
     }
 
