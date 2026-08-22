@@ -25,6 +25,10 @@ class RobotConfigDslTest {
             motor("arm_motor", port = 0)
             servo("turret_servo", port = 0)
         }
+
+        servoHub {
+            servo("hub_servo", port = 0)
+        }
     }
 
     @Test
@@ -46,6 +50,10 @@ class RobotConfigDslTest {
         val colorSensor = config.devices.single { it.name == "color_sensor" }
         assertEquals(0x3c, colorSensor.i2cAddress)
 
+        val hubServo = config.devices.single { it.name == "hub_servo" }
+        assertEquals(HubId.SERVO_HUB, hubServo.hub)
+        assertEquals("Servo", hubServo.tagName)
+
         assertEquals(listOf(ConfiguredWebcam("Webcam 1", "A1B2C3D4")), config.webcams)
         assertEquals(listOf(ConfiguredUsbSerialDevice("usb_bridge", "FT1234")), config.usbSerialDevices)
     }
@@ -63,6 +71,24 @@ class RobotConfigDslTest {
         assertTrue(robot.webcams.containsKey("Webcam 1"))
         assertTrue(robot.usbSerialDevices.containsKey("usb_bridge"))
         assertTrue(robot.unrecognized.isEmpty())
+        assertTrue("hub_servo (on the REV Servo Hub) should also resolve", robot.servos.containsKey("hub_servo"))
+    }
+
+    @Test
+    fun `ServoHubBuilder exposes no way to add a non-servo device`() {
+        // HubDeviceBuilder (used by the Control Hub and expansionHub) has motor/touchSensor/imu/
+        // i2cDevice/device functions; ServoHubBuilder deliberately doesn't inherit from it, so
+        // there's no motor(), no device("AnyTag", ...) escape hatch -- only servo ports exist on
+        // a real REV Servo Hub, so that's all this builder can produce.
+        val members = ServoHubBuilder::class.java.declaredMethods.map { it.name }
+        val nonServoDeviceApis = setOf("motor", "touchSensor", "digitalChannel", "analogInput", "imu", "i2cDevice", "device")
+
+        assertTrue("servo() should be exposed", members.contains("servo"))
+        assertTrue("crServo() should be exposed", members.contains("crServo"))
+        assertTrue(
+            "ServoHubBuilder should expose none of $nonServoDeviceApis, found: $members",
+            members.none { it in nonServoDeviceApis }
+        )
     }
 
     @Test

@@ -11,7 +11,8 @@ annotation class RobotConfigDsl
  * simulates (see `emulator.hardware`); [device] is the escape hatch for anything else the real SDK
  * supports -- it accepts any tag name REV Hardware Client would recognize, so nothing you can wire
  * up on real hardware is unreachable from this DSL even if this library has no specific simulated
- * behavior for it (see [buildSimulatedRobot]'s fallback rules).
+ * behavior for it (see [buildSimulatedRobot]'s fallback rules). See [ServoHubBuilder] for
+ * [RobotConfigBuilder.servoHub], which deliberately does not share this class.
  */
 @RobotConfigDsl
 open class HubDeviceBuilder internal constructor(private val hub: HubId) {
@@ -42,7 +43,27 @@ open class HubDeviceBuilder internal constructor(private val hub: HubId) {
 }
 
 /**
- * Builds a [RobotConfig] entirely in Kotlin -- no hand-written XML, no REV Hardware Client round
+ * Devices on a REV Servo Hub, for [RobotConfigBuilder.servoHub] -- deliberately not a
+ * [HubDeviceBuilder]: a Servo Hub has 6 servo ports and nothing else, so unlike every other hub
+ * this builder exposes no motor/sensor/IMU functions and no [HubDeviceBuilder.device] escape
+ * hatch. There's no way to add a non-servo device to it -- the Kotlin compiler rejects it, the
+ * same way REV's own hardware would reject plugging a motor into a servo port.
+ */
+@RobotConfigDsl
+class ServoHubBuilder internal constructor() {
+    internal val devices = mutableListOf<ConfiguredDevice>()
+
+    fun servo(name: String, port: Int) {
+        devices += ConfiguredDevice("Servo", name, HubId.SERVO_HUB, port, bus = null)
+    }
+
+    fun crServo(name: String, port: Int) {
+        devices += ConfiguredDevice("CRServo", name, HubId.SERVO_HUB, port, bus = null)
+    }
+}
+
+/**
+ * Builds a [RobotConfig] entirely in Kotlin -- no handwritten XML, no REV Hardware Client round
  * trip required to keep it up to date. Devices declared directly on this builder are on the
  * Control Hub; wrap a block in [expansionHub] for a second hub. See [robotConfig] and
  * [writeRobotConfigXml] to turn the result into the real config file your project uploads, and
@@ -51,11 +72,17 @@ open class HubDeviceBuilder internal constructor(private val hub: HubId) {
 @RobotConfigDsl
 class RobotConfigBuilder internal constructor() : HubDeviceBuilder(HubId.CONTROL) {
     private var expansionDevices: List<ConfiguredDevice> = emptyList()
+    private var servoHubDevices: List<ConfiguredDevice> = emptyList()
     private val webcams = mutableListOf<ConfiguredWebcam>()
     private val usbSerialDevices = mutableListOf<ConfiguredUsbSerialDevice>()
 
     fun expansionHub(block: HubDeviceBuilder.() -> Unit) {
         expansionDevices = HubDeviceBuilder(HubId.EXPANSION).apply(block).devices
+    }
+
+    /** A REV Servo Hub -- its own module with 6 servo ports, not devices wired to Control/Expansion Hub. */
+    fun servoHub(block: ServoHubBuilder.() -> Unit) {
+        servoHubDevices = ServoHubBuilder().apply(block).devices
     }
 
     fun webcam(name: String, serialNumber: String? = null) {
@@ -67,7 +94,7 @@ class RobotConfigBuilder internal constructor() : HubDeviceBuilder(HubId.CONTROL
         usbSerialDevices += ConfiguredUsbSerialDevice(name, serialNumber)
     }
 
-    internal fun build(): RobotConfig = RobotConfig(devices + expansionDevices, webcams, usbSerialDevices)
+    internal fun build(): RobotConfig = RobotConfig(devices + expansionDevices + servoHubDevices, webcams, usbSerialDevices)
 }
 
 /**

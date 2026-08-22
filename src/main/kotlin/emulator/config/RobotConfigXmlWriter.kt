@@ -1,6 +1,7 @@
 package emulator.config
 
 import emulator.hardware.HubId
+import org.w3c.dom.Element
 import java.io.File
 import java.io.StringWriter
 import javax.xml.parsers.DocumentBuilderFactory
@@ -34,26 +35,35 @@ fun writeRobotConfigXml(config: RobotConfig): String {
     }
     robot.appendChild(usbDevice)
 
+    fun appendDeviceElement(parent: Element, configuredDevice: ConfiguredDevice) {
+        val deviceElement = document.createElement(configuredDevice.tagName)
+        deviceElement.setAttribute("name", configuredDevice.name)
+        configuredDevice.port?.let { deviceElement.setAttribute("port", it.toString()) }
+        configuredDevice.bus?.let { deviceElement.setAttribute("bus", it.toString()) }
+        configuredDevice.i2cAddress?.let { deviceElement.setAttribute("I2cAddress", "0x%02x".format(it)) }
+        parent.appendChild(deviceElement)
+    }
+
     fun appendModule(moduleName: String, modulePort: String, devices: List<ConfiguredDevice>) {
         if (devices.isEmpty() && modulePort == EXPANSION_HUB_MODULE_PORT) return // no expansion hub configured, don't invent one
         val module = document.createElement("LynxModule").apply {
             setAttribute("name", moduleName)
             setAttribute("port", modulePort)
         }
-        for (configuredDevice in devices) {
-            val deviceElement = document.createElement(configuredDevice.tagName)
-            deviceElement.setAttribute("name", configuredDevice.name)
-            configuredDevice.port?.let { deviceElement.setAttribute("port", it.toString()) }
-            configuredDevice.bus?.let { deviceElement.setAttribute("bus", it.toString()) }
-            configuredDevice.i2cAddress?.let { deviceElement.setAttribute("I2cAddress", "0x%02x".format(it)) }
-            module.appendChild(deviceElement)
-        }
+        for (configuredDevice in devices) appendDeviceElement(module, configuredDevice)
         usbDevice.appendChild(module)
     }
 
     val devicesByHub = config.devices.groupBy { it.hub }
     appendModule("Control Hub", CONTROL_HUB_MODULE_PORT, devicesByHub[HubId.CONTROL].orEmpty())
     appendModule("Expansion Hub 2", EXPANSION_HUB_MODULE_PORT, devicesByHub[HubId.EXPANSION].orEmpty())
+
+    val servoHubDevices = devicesByHub[HubId.SERVO_HUB].orEmpty()
+    if (servoHubDevices.isNotEmpty()) { // no Servo Hub configured, don't invent one
+        val servoHub = document.createElement("RevRoboticsServoHub").apply { setAttribute("name", "Servo Hub") }
+        for (configuredDevice in servoHubDevices) appendDeviceElement(servoHub, configuredDevice)
+        robot.appendChild(servoHub)
+    }
 
     for (webcam in config.webcams) {
         val webcamElement = document.createElement("Webcam")

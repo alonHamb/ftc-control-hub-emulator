@@ -141,6 +141,44 @@ class RobotConfigXmlTest {
     }
 
     @Test
+    fun `RevRoboticsServoHub is its own module -- servo devices route there, non-servo tags are dropped`() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Robot type="FirstInspires-FTC">
+              <LynxUsbDevice name="Control Hub" serialNumber="(embedded)" parentModuleAddress="173">
+                <LynxModule name="Control Hub" port="173">
+                  <Motor name="left_front_drive" port="0" />
+                </LynxModule>
+              </LynxUsbDevice>
+              <RevRoboticsServoHub name="Servo Hub">
+                <Servo name="hub_servo" port="0" />
+                <ContinuousRotationServo name="hub_cr_servo" port="1" />
+                <Motor name="should_be_dropped_motor" port="2" />
+                <TouchSensor name="should_be_dropped_sensor" port="3" />
+              </RevRoboticsServoHub>
+            </Robot>
+        """.trimIndent()
+
+        val config = parseRobotConfigXml(xml)
+
+        val hubServo = config.devices.single { it.name == "hub_servo" }
+        assertEquals(HubId.SERVO_HUB, hubServo.hub)
+        assertEquals(0, hubServo.port)
+
+        val hubCrServo = config.devices.single { it.name == "hub_cr_servo" }
+        assertEquals(HubId.SERVO_HUB, hubCrServo.hub)
+
+        assertTrue(
+            "a non-servo tag nested under RevRoboticsServoHub should be dropped, not misplaced onto a port type the hub doesn't have",
+            config.devices.none { it.name == "should_be_dropped_motor" || it.name == "should_be_dropped_sensor" }
+        )
+
+        val robot = buildSimulatedRobot(config)
+        assertTrue(robot.servos.containsKey("hub_servo"))
+        assertTrue(robot.servos.containsKey("hub_cr_servo"))
+    }
+
+    @Test
     fun `updateAll advances every device the same as calling update on each yourself`() {
         val robot = buildSimulatedRobot(parseRobotConfigXml(SAMPLE_CONFIG_XML))
         val motor = robot.motors.getValue("left_front_drive")

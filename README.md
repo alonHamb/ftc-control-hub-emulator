@@ -116,7 +116,8 @@ in your test source set rather than shipping in the APK.
 ### `emulator.hardware` -- simulated devices
 
 **`PortId(hub: HubId, type: PortType, index: Int)`** describes where a device lives, the way you'd
-wire up a real robot: `HubId` is `CONTROL` or `EXPANSION`; `PortType` is `MOTOR` (4 ports),
+wire up a real robot: `HubId` is `CONTROL`, `EXPANSION`, or `SERVO_HUB` (a REV Servo Hub -- its own
+module with 6 servo ports, addressed independently of either hub's own servo ports); `PortType` is `MOTOR` (4 ports),
 `SERVO` (6), `DIGITAL` (8), `ANALOG` (4), or `I2C` (4). Constructing one with an out-of-range
 `index` throws immediately, so a typo in your wiring map fails fast instead of silently doing
 nothing.
@@ -204,6 +205,7 @@ exports:
 | Anything else with a `port` attribute | `digitalDevices` | Same reasoning: an unrecognized hub-port peripheral is more often digital than not. |
 | `Webcam` | `webcams: Map<String, SimWebcam>` | A live USB device (see [USB devices](#usb-devices) above) -- not a hub-port device, so kept out of `allDevices`. |
 | `UsbDevice` | `usbSerialDevices: Map<String, SimUsbSerialDevice>` | This library's own tag for a generic USB-serial peripheral -- same USB-device treatment as `Webcam`. |
+| `Servo`/`CRServo` nested under `RevRoboticsServoHub` | `servos`, on `HubId.SERVO_HUB` | A REV Servo Hub is its own module (6 servo ports), not a device on the Control/Expansion Hub -- `RevRoboticsServoHub` is parsed as a third hub, same as `LynxModule`. Any non-servo tag nested under it is dropped rather than misplaced onto a port type a Servo Hub doesn't have, since the real hardware has no motor/digital/analog/I2C ports to plug one into. |
 
 **Nothing from your config file is silently dropped.** A tag this parser has genuinely never seen
 still resolves to *some* simulated device (by whether it has a `port` or a `bus`, per the table
@@ -237,6 +239,10 @@ val robotMap = robotConfig {
         servo("turret_servo", port = 0)
     }
 
+    servoHub {
+        servo("wrist_servo", port = 0)
+    }
+
     webcam("Webcam 1", serialNumber = "A1B2C3D4")
     usbSerialDevice("usb_bridge", serialNumber = "FT1234")
 }
@@ -247,10 +253,16 @@ of functions for a second hub. `motor`/`servo`/`crServo`/`touchSensor`/`digitalC
 `analogInput`/`imu` cover the common cases; `i2cDevice(tagName, name, bus, i2cAddress = null)` and
 the more general `device(tagName, name, port, bus, i2cAddress)` are the same escape hatch
 `buildSimulatedRobot` itself relies on -- any tag name REV Hardware Client would recognize works
-here too, even ones this library has no specific simulated behavior for. `webcam(name,
-serialNumber)` and `usbSerialDevice(name, serialNumber)` aren't hub-scoped -- USB devices connect
-directly, not through either hub -- so they're available at the top level only, same as in a real
-config file.
+here too, even ones this library has no specific simulated behavior for.
+
+`servoHub { ... }` opens a REV Servo Hub -- its own module, not devices wired to Control/Expansion
+Hub. Unlike `expansionHub`, it only exposes `servo`/`crServo` -- no `motor`, no `i2cDevice`, no
+`device(tagName, ...)` escape hatch -- so there's no way to add a non-servo device to it; the
+compiler rejects it, the same way a real Servo Hub's ports would reject anything but a servo.
+
+`webcam(name, serialNumber)` and `usbSerialDevice(name, serialNumber)` aren't hub-scoped -- USB
+devices connect directly, not through any hub -- so they're available at the top level only, same
+as in a real config file.
 
 Feed `robotMap` straight to `buildSimulatedRobot(robotMap)` for the emulator -- no XML step
 involved at all. **`writeRobotConfigXml(robotMap)`** (or the `File` overload, which also creates

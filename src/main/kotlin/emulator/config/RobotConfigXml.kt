@@ -95,6 +95,7 @@ fun parseRobotConfigXml(xml: String): RobotConfig {
         val children = module.childNodes
         for (c in 0 until children.length) {
             val element = children.item(c) as? Element ?: continue
+            if (element.tagName == "RevRoboticsServoHub") continue // its own module, handled below
             val name = element.attr("name") ?: continue
             devices += ConfiguredDevice(
                 tagName = element.tagName,
@@ -103,6 +104,29 @@ fun parseRobotConfigXml(xml: String): RobotConfig {
                 port = element.attr("port")?.toIntOrNull(),
                 bus = element.attr("bus")?.toIntOrNull(),
                 i2cAddress = parseI2cAddress(element.attr("I2cAddress"))
+            )
+        }
+    }
+
+    // REV Servo Hub -- its own module with 6 servo ports, not a device wired to Control/Expansion
+    // Hub, even though REV Hardware Client can nest its element under one for wiring purposes. A
+    // Servo Hub has no motor/digital/analog/I2C ports on the real hardware, so any non-servo tag
+    // nested under it is dropped rather than misclassified onto a port type it doesn't have.
+    val servoHubNodes = document.getElementsByTagName("RevRoboticsServoHub")
+    for (s in 0 until servoHubNodes.length) {
+        val servoHub = servoHubNodes.item(s) as? Element ?: continue
+        val children = servoHub.childNodes
+        for (c in 0 until children.length) {
+            val element = children.item(c) as? Element ?: continue
+            if (element.tagName !in servoTags) continue // Servo Hub only has servo ports
+            val name = element.attr("name") ?: continue
+            devices += ConfiguredDevice(
+                tagName = element.tagName,
+                name = name,
+                hub = HubId.SERVO_HUB,
+                port = element.attr("port")?.toIntOrNull(),
+                bus = null,
+                i2cAddress = null
             )
         }
     }

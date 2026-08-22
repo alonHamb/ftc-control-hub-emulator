@@ -1,9 +1,14 @@
 package emulator.hardware
 
-/** Which physical REV hub a port lives on. Mirrors a two-hub (Control + Expansion) FTC robot. */
+/**
+ * Which physical REV hub a port lives on. Mirrors a Control + Expansion Hub FTC robot, plus an
+ * optional REV Servo Hub -- a separate module (its own 6 servo ports, addressed independently of
+ * the Control/Expansion Hub's own servo ports) rather than a device wired to one of them.
+ */
 enum class HubId(val label: String) {
     CONTROL("Control Hub"),
-    EXPANSION("Expansion Hub")
+    EXPANSION("Expansion Hub"),
+    SERVO_HUB("REV Servo Hub")
 }
 
 enum class PortType(val label: String, val count: Int) {
