@@ -105,6 +105,42 @@ class RobotConfigXmlTest {
     }
 
     @Test
+    fun `vendor-specific tag names classify the same as their generic equivalent, not by attribute-shape fallback`() {
+        // Without an explicit tag entry, a port-based device falls back to DIGITAL and a bus-based
+        // IMU falls back to generic I2C -- both wrong buckets for these. This guards against that.
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Robot type="FirstInspires-FTC">
+              <LynxUsbDevice name="Control Hub" serialNumber="(embedded)" parentModuleAddress="173">
+                <LynxModule name="Control Hub" port="173">
+                  <GoBILDA5202SeriesMotor name="gobilda_motor" port="2" />
+                  <RevRoboticsCoreHexMotor name="core_hex_motor" port="3" />
+                  <ContinuousRotationServo name="cr_servo" port="2" />
+                  <RevTouchSensor name="rev_touch" port="4" />
+                  <LimitSwitch name="limit_switch" port="5" />
+                  <AnalogGyro name="analog_gyro" port="2" />
+                  <PotentiometerSensor name="pot" port="3" />
+                  <Rev9AxisImu name="rev_9axis" bus="2" />
+                  <AndyMarkIMU name="am_imu" bus="3" />
+                </LynxModule>
+              </LynxUsbDevice>
+            </Robot>
+        """.trimIndent()
+
+        val robot = buildSimulatedRobot(parseRobotConfigXml(xml))
+
+        assertTrue("GoBILDA5202SeriesMotor should classify as a motor", robot.motors.containsKey("gobilda_motor"))
+        assertTrue("RevRoboticsCoreHexMotor should classify as a motor", robot.motors.containsKey("core_hex_motor"))
+        assertTrue("ContinuousRotationServo should classify as a servo", robot.servos.containsKey("cr_servo"))
+        assertTrue("RevTouchSensor should classify as digital", robot.digitalDevices.containsKey("rev_touch"))
+        assertTrue("LimitSwitch should classify as digital", robot.digitalDevices.containsKey("limit_switch"))
+        assertTrue("AnalogGyro should classify as analog, not digital", robot.analogDevices.containsKey("analog_gyro"))
+        assertTrue("PotentiometerSensor should classify as analog, not digital", robot.analogDevices.containsKey("pot"))
+        assertTrue("Rev9AxisImu should classify as a SimImu, not generic I2C", robot.imus.containsKey("rev_9axis"))
+        assertTrue("AndyMarkIMU should classify as a SimImu, not generic I2C", robot.imus.containsKey("am_imu"))
+    }
+
+    @Test
     fun `updateAll advances every device the same as calling update on each yourself`() {
         val robot = buildSimulatedRobot(parseRobotConfigXml(SAMPLE_CONFIG_XML))
         val motor = robot.motors.getValue("left_front_drive")

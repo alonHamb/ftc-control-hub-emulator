@@ -136,12 +136,19 @@ private enum class DeviceCategory { MOTOR, SERVO, DIGITAL, ANALOG, IMU, I2C, UNK
 // reasonable bucket: an unrecognized tag with a `bus` attribute is treated as a generic I2C
 // device (matches how the real config format itself distinguishes I2C devices), and an
 // unrecognized tag with a `port` attribute falls back to a generic digital device, since most
-// unlabeled hub-port peripherals (limit switches, LEDs, misc I/O) are digital in practice.
-private val motorTags = setOf("Motor")
-private val servoTags = setOf("Servo", "CRServo")
-private val imuTags = setOf("LynxEmbeddedIMU", "BNO055IMU", "AdafruitBNO055IMU", "IMU")
-private val digitalTags = setOf("TouchSensor", "DigitalChannel", "DigitalDevice", "REV_LED", "RevBlinkinLedDriver")
-private val analogTags = setOf("AnalogInput", "OpticalDistanceSensor")
+// unlabeled hub-port peripherals (limit switches, LEDs, misc I/O) are digital in practice. I2C
+// sensor tags (LynxI2cColorRangeSensor, RevTOFDistanceSensor, AdaFruitColorSensor,
+// ModernRoboticsI2cCompassSensor/Gyro/RangeSensor, MaxSonarI2CXL, HuskyLens, OctoQuad,
+// GoBildaPinpointDriver, SparkFunOTOS, AndyMarkColorSensor/TimeOfFlight, SparkFunLEDStick, ...)
+// are deliberately left off this list and handled by that generic `bus` fallback instead, since
+// this library treats every non-IMU I2C device identically regardless of vendor/model.
+private val motorTags = setOf("Motor", "GoBILDA5202SeriesMotor", "RevRoboticsCoreHexMotor", "RevRobotics20HDMotor")
+private val servoTags = setOf("Servo", "CRServo", "ContinuousRotationServo")
+private val imuTags = setOf("LynxEmbeddedIMU", "BNO055IMU", "AdafruitBNO055IMU", "IMU", "Rev9AxisImu", "AndyMarkIMU")
+private val digitalTags = setOf(
+    "TouchSensor", "RevTouchSensor", "DigitalChannel", "DigitalDevice", "REV_LED", "RevBlinkinLedDriver", "LimitSwitch"
+)
+private val analogTags = setOf("AnalogInput", "OpticalDistanceSensor", "AnalogGyro", "PotentiometerSensor")
 
 private fun classify(device: ConfiguredDevice): DeviceCategory = when {
     device.tagName in motorTags -> DeviceCategory.MOTOR
