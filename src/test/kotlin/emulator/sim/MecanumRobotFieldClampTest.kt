@@ -10,8 +10,8 @@ import org.junit.Test
 import kotlin.math.PI
 
 private const val DT = 0.02 // 50 Hz, matching a real update loop
-private const val HALF_FIELD = 144.0 / 2.0 // MecanumRobot's default fieldSizeIn
-private const val HALF_FOOTPRINT = 18.0 / 2.0 // MecanumGeometry's default robot length/width
+private const val HALF_FIELD = 3657.6 / 2.0 // MecanumRobot's default fieldSizeMm
+private const val HALF_FOOTPRINT = 457.2 / 2.0 // MecanumGeometry's default robot length/width
 
 private fun motor(index: Int) = SimMotor(PortId(HubId.CONTROL, PortType.MOTOR, index), "motor $index")
 
@@ -46,9 +46,9 @@ class MecanumRobotFieldClampTest {
 
         // At 45deg a square robot's rotated AABB half-extent is halfFootprint*sqrt(2), so its x
         // (== y here, driving straight along the diagonal) should stop noticeably short of where
-        // the unrotated case does (63in) -- not out past it.
+        // the unrotated case does (1600.2mm) -- not out past it.
         assertTrue(
-            "expected the 45deg robot's x to stop well short of the unrotated 63in stopping point, was ${robot.pose.x}",
+            "expected the 45deg robot's x to stop well short of the unrotated 1600.2mm stopping point, was ${robot.pose.x}",
             robot.pose.x < HALF_FIELD - HALF_FOOTPRINT - 1.0
         )
         assertEquals("expected x and y to be equal driving straight along the 45deg diagonal", robot.pose.x, robot.pose.y, 0.05)
@@ -88,6 +88,6 @@ class MecanumRobotFieldClampTest {
             assertEquals("x should stay pinned at the wall the whole time", HALF_FIELD - HALF_FOOTPRINT, robot.pose.x, 1e-9)
         }
 
-        assertTrue("expected the robot to have slid laterally along the wall", kotlin.math.abs(robot.pose.y) > 5.0)
+        assertTrue("expected the robot to have slid laterally along the wall", kotlin.math.abs(robot.pose.y) > 100.0)
     }
 }

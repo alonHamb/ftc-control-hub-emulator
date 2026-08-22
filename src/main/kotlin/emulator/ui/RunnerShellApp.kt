@@ -49,13 +49,13 @@ class RunnerShellApp(
     private val statusSupplier: () -> String,
     private val batteryVoltageSupplier: () -> Double,
     private val onClosed: () -> Unit,
-    robotLengthIn: Double = 18.0,
-    robotWidthIn: Double = 18.0
+    robotLengthMm: Double = 457.2,
+    robotWidthMm: Double = 457.2
 ) : JFrame(title) {
     private val keyTracker = KeyTracker()
     private val gamepadInput = CombinedGamepadInput(keyTracker)
 
-    private val fieldPanel = PoseFieldPanel(poseSupplier, robotLengthIn, robotWidthIn)
+    private val fieldPanel = PoseFieldPanel(poseSupplier, robotLengthMm, robotWidthMm)
     private val portMonitorPanel = PortRowMonitorPanel(portRowsSupplier())
     private val telemetryPanel = SnapshotTelemetryPanel(telemetrySupplier, crashSupplier)
 
@@ -158,7 +158,7 @@ class RunnerShellApp(
  * until the window is closed. Exists so callers that can't reference `javax.swing`/`java.awt`
  * themselves (see the class doc above) never have to.
  *
- * [robotLengthIn]/[robotWidthIn] only affect the field view's drawn robot box -- pass the same
+ * [robotLengthMm]/[robotWidthMm] only affect the field view's drawn robot box -- pass the same
  * values you gave your [emulator.sim.MecanumGeometry] if you customized it, so the drawing matches
  * where [emulator.sim.MecanumRobot] actually stops the robot.
  */
@@ -176,8 +176,8 @@ fun runRunnerShellAndBlock(
     crashSupplier: () -> Throwable?,
     statusSupplier: () -> String,
     batteryVoltageSupplier: () -> Double,
-    robotLengthIn: Double = 18.0,
-    robotWidthIn: Double = 18.0
+    robotLengthMm: Double = 457.2,
+    robotWidthMm: Double = 457.2
 ) {
     val latch = CountDownLatch(1)
     SwingUtilities.invokeLater {
@@ -186,8 +186,8 @@ fun runRunnerShellAndBlock(
             poseSupplier, portRowsSupplier, telemetrySupplier, crashSupplier,
             statusSupplier, batteryVoltageSupplier,
             onClosed = { latch.countDown() },
-            robotLengthIn = robotLengthIn,
-            robotWidthIn = robotWidthIn
+            robotLengthMm = robotLengthMm,
+            robotWidthMm = robotWidthMm
         ).isVisible = true
     }
     latch.await()

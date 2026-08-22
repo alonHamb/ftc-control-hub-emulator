@@ -278,24 +278,24 @@ build so it happens automatically, before every upload.
 
 #### `MecanumRobot`
 
-Integrates a field-frame `Pose(x, y, headingRad)` (inches, radians; `0,0` is field center; `+x`
-right; `+y` up; heading `0` faces `+x`) from four `SimMotor`s' simulated encoder velocities, using
-standard mecanum forward kinematics. Call `update(dt)` once per tick (after updating the four
+Integrates a field-frame `Pose(x, y, headingRad)` (millimeters, radians; `0,0` is field center;
+`+x` right; `+y` up; heading `0` faces `+x`) from four `SimMotor`s' simulated encoder velocities,
+using standard mecanum forward kinematics. Call `update(dt)` once per tick (after updating the four
 motors themselves), and read `pose` any time; `resetPose(Pose)` snaps to a new pose (e.g. for a
 "Reset Field" button); `onPoseUpdated`, if given, is called with every new pose -- e.g. to mirror
 it into a simulated odometry computer the way a goBILDA Pinpoint would report it back to an OpMode.
 
-`MecanumGeometry` configures the wheelbase (`trackWidthIn`, `wheelBaseIn`, `wheelRadiusIn`, all
-defaulting to a 12in x 12in chassis with ~96mm mecanum wheels) and the chassis footprint
-(`robotLengthIn`/`robotWidthIn`, the extent along the forward and left-right axes respectively,
-both defaulting to 18in).
+`MecanumGeometry` configures the wheelbase (`trackWidthMm`, `wheelBaseMm`, `wheelRadiusMm`, all
+defaulting to a 304.8mm x 304.8mm (12in x 12in) chassis with 96mm mecanum wheels) and the chassis
+footprint (`robotLengthMm`/`robotWidthMm`, the extent along the forward and left-right axes
+respectively, both defaulting to 457.2mm (18in)).
 
-**The pose is clamped to stay on the field.** By default that's a 144in x 144in square (standard
-FTC, `MecanumRobot`'s `fieldSizeIn` parameter), origin at center -- matching `PoseFieldPanel`'s
-field rendering. The clamp checks the robot's actual *rotated* rectangular footprint, not just its
-center point, so a corner or side hitting a wall stops it the same as driving straight into one
-would; x and y are clamped independently, so a robot driving into a corner keeps sliding along
-whichever wall it's still clear of instead of stopping dead.
+**The pose is clamped to stay on the field.** By default that's a 3657.6mm x 3657.6mm (144in)
+square (standard FTC, `MecanumRobot`'s `fieldSizeMm` parameter), origin at center -- matching
+`PoseFieldPanel`'s field rendering. The clamp checks the robot's actual *rotated* rectangular
+footprint, not just its center point, so a corner or side hitting a wall stops it the same as
+driving straight into one would; x and y are clamped independently, so a robot driving into a
+corner keeps sliding along whichever wall it's still clear of instead of stopping dead.
 
 **Hitting a wall simulates wheel slip, for free.** Nothing in `MecanumRobot` feeds the clamp back
 into the drive motors -- it only *reads* their velocity to integrate pose. So pinning the chassis
@@ -303,7 +303,7 @@ against a wall looks exactly like a real robot's wheels spinning uselessly again
 each `SimMotor`'s encoder keeps advancing at the commanded speed even while the pose itself has
 stopped changing.
 
-If you customize `robotLengthIn`/`robotWidthIn`, pass the same values to `RunnerShellApp`/
+If you customize `robotLengthMm`/`robotWidthMm`, pass the same values to `RunnerShellApp`/
 `runRunnerShellAndBlock` (or `PoseFieldPanel` directly) so the drawn robot matches where physics
 actually stops it -- see [`emulator.ui`](#emulatorui----the-desktop-shell) below.
 
@@ -336,7 +336,7 @@ closed. Exists so callers never have to reference `javax.swing`/`java.awt` thems
 | `crashSupplier` | Every tick | Return a caught `Throwable` here (e.g. from wrapping `onTick`'s body in `try`/`catch`) and the telemetry panel shows its stack trace instead of normal telemetry -- see [step 4](#4-drive-your-real-opmode-through-runnershellapp). |
 | `statusSupplier` | Every tick, status bar | e.g. `{ if (running) "State: RUNNING" else "State: STOPPED" }` |
 | `batteryVoltageSupplier` | Every tick, status bar | `{ battery.voltage }` |
-| `robotLengthIn`/`robotWidthIn` | -- | Optional, default 18in/18in -- match your `MecanumGeometry` if customized. |
+| `robotLengthMm`/`robotWidthMm` | -- | Optional, default 457.2mm/457.2mm (18in/18in) -- match your `MecanumGeometry` if customized. |
 
 **`PortRowView(hub, type, port, name, activitySummary: () -> String)`** -- one row in the port
 monitor table (Hub / Type / Port / Name / Activity columns). Build one per simulated device, e.g.

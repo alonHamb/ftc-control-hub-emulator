@@ -14,21 +14,23 @@ import java.awt.geom.Rectangle2D
 import javax.swing.JPanel
 
 /**
- * Top-down view of a standard 144in x 144in FTC field, origin at center, +x right, +y up, reading
- * the robot's pose from a caller-supplied [poseSupplier] instead of owning any simulation state
- * itself -- used by [RunnerShellApp] so this same view works for any pose source.
+ * Top-down view of a standard 3657.6mm x 3657.6mm (144in x 144in) FTC field, origin at center, +x
+ * right, +y up, reading the robot's pose from a caller-supplied [poseSupplier] instead of owning
+ * any simulation state itself -- used by [RunnerShellApp] so this same view works for any pose
+ * source.
  *
- * [robotLengthIn] (drawn along the robot's forward axis, the yellow heading tick) and
- * [robotWidthIn] (left-right) default to 18in x 18in to match [emulator.sim.MecanumGeometry]'s
- * defaults, so the box drawn here lines up with where [emulator.sim.MecanumRobot] actually stops
- * the robot at a field wall. Pass your own if you've customized [emulator.sim.MecanumGeometry].
+ * [robotLengthMm] (drawn along the robot's forward axis, the yellow heading tick) and
+ * [robotWidthMm] (left-right) default to 457.2mm x 457.2mm (18in x 18in) to match
+ * [emulator.sim.MecanumGeometry]'s defaults, so the box drawn here lines up with where
+ * [emulator.sim.MecanumRobot] actually stops the robot at a field wall. Pass your own if you've
+ * customized [emulator.sim.MecanumGeometry].
  */
 class PoseFieldPanel(
     private val poseSupplier: () -> Pose,
-    private val robotLengthIn: Double = 18.0,
-    private val robotWidthIn: Double = 18.0
+    private val robotLengthMm: Double = 457.2,
+    private val robotWidthMm: Double = 457.2
 ) : JPanel() {
-    private val fieldSizeIn = 144.0
+    private val fieldSizeMm = 3657.6
     private val trail = ArrayDeque<Pose>()
     private val maxTrailPoints = 400
 
@@ -53,7 +55,7 @@ class PoseFieldPanel(
         val g2 = g as Graphics2D
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
 
-        val scale = minOf(width, height) / fieldSizeIn
+        val scale = minOf(width, height) / fieldSizeMm
         val toScreen = AffineTransform().apply {
             translate(width / 2.0, height / 2.0)
             scale(scale, -scale)
@@ -67,15 +69,15 @@ class PoseFieldPanel(
     private fun drawGrid(g2: Graphics2D, toScreen: AffineTransform) {
         g2.color = Color(45, 48, 54)
         g2.stroke = BasicStroke(1f)
-        var i = -fieldSizeIn / 2
-        while (i <= fieldSizeIn / 2) {
-            g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(i, -fieldSizeIn / 2), null), toScreen.transform(Point2D.Double(i, fieldSizeIn / 2), null)))
-            g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(-fieldSizeIn / 2, i), null), toScreen.transform(Point2D.Double(fieldSizeIn / 2, i), null)))
-            i += 24.0
+        var i = -fieldSizeMm / 2
+        while (i <= fieldSizeMm / 2) {
+            g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(i, -fieldSizeMm / 2), null), toScreen.transform(Point2D.Double(i, fieldSizeMm / 2), null)))
+            g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(-fieldSizeMm / 2, i), null), toScreen.transform(Point2D.Double(fieldSizeMm / 2, i), null)))
+            i += 609.6 // 2ft grid lines, in mm
         }
         g2.color = Color(80, 84, 92)
-        g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(-fieldSizeIn / 2, 0.0), null), toScreen.transform(Point2D.Double(fieldSizeIn / 2, 0.0), null)))
-        g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(0.0, -fieldSizeIn / 2), null), toScreen.transform(Point2D.Double(0.0, fieldSizeIn / 2), null)))
+        g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(-fieldSizeMm / 2, 0.0), null), toScreen.transform(Point2D.Double(fieldSizeMm / 2, 0.0), null)))
+        g2.draw(Line2D.Double(toScreen.transform(Point2D.Double(0.0, -fieldSizeMm / 2), null), toScreen.transform(Point2D.Double(0.0, fieldSizeMm / 2), null)))
     }
 
     private fun drawTrail(g2: Graphics2D, toScreen: AffineTransform) {
@@ -92,7 +94,7 @@ class PoseFieldPanel(
         transform.translate(pose.x, pose.y)
         transform.rotate(pose.headingRad)
 
-        val body = transform.createTransformedShape(Rectangle2D.Double(-robotLengthIn / 2, -robotWidthIn / 2, robotLengthIn, robotWidthIn))
+        val body = transform.createTransformedShape(Rectangle2D.Double(-robotLengthMm / 2, -robotWidthMm / 2, robotLengthMm, robotWidthMm))
         g2.color = Color(60, 130, 220)
         g2.fill(body)
         g2.color = Color(150, 200, 255)
@@ -103,7 +105,7 @@ class PoseFieldPanel(
         g2.draw(
             Line2D.Double(
                 transform.transform(Point2D.Double(0.0, 0.0), null),
-                transform.transform(Point2D.Double(robotLengthIn / 2 + 6, 0.0), null)
+                transform.transform(Point2D.Double(robotLengthMm / 2 + 150, 0.0), null)
             )
         )
     }

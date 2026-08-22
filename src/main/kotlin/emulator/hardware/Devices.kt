@@ -83,7 +83,7 @@ class SimMotor(
 
     override fun activitySummary(): String {
         val rpm = (velocityTicksPerSec / ticksPerRev) * 60.0
-        return "pwr=%+.2f  pos=%d ticks  vel=%.0f rpm  mode=%s".format(commandedPower, getCurrentPosition(), rpm, mode)
+        return "pwr=$commandedPower  pos=$positionTicks ticks  vel=$rpm rpm  mode=$mode"
     }
 }
 
@@ -108,7 +108,7 @@ class SimServo(port: PortId, name: String, private val sweepSecondsFullRange: Do
 
     override fun currentDrawAmps(): Double = if (abs(commandedPosition - actualPosition) > 0.001) 0.4 else 0.05
 
-    override fun activitySummary(): String = "pos=%.2f (target %.2f)".format(actualPosition, commandedPosition)
+    override fun activitySummary(): String = "pos=$actualPosition (target $commandedPosition)"
 }
 
 /**
@@ -136,7 +136,7 @@ class SimAnalogDevice(port: PortId, name: String, private val maxVoltage: Double
             field = value.coerceIn(0.0, maxVoltage)
         }
 
-    override fun activitySummary(): String = "voltage=%.2fV".format(voltage)
+    override fun activitySummary(): String = "voltage=$voltage"
 }
 
 /**
@@ -149,7 +149,7 @@ class SimAnalogDevice(port: PortId, name: String, private val maxVoltage: Double
 class SimImu(port: PortId, name: String) : SimDevice(port, name) {
     var headingRad: Double = 0.0
 
-    override fun activitySummary(): String = "heading=%.1f°".format(Math.toDegrees(headingRad))
+    override fun activitySummary(): String = "heading=${Math.toDegrees(headingRad)}°"
 }
 
 /**
@@ -192,7 +192,7 @@ class SimI2cDevice(port: PortId, name: String, val i2cAddress: Int = 0x00) : Sim
         ByteArray(length) { i -> registers.getOrElse(register + i) { 0 } }
 
     override fun activitySummary(): String {
-        val addr = "addr=0x%02X".format(i2cAddress)
+        val addr = "addr=$i2cAddress"
         val state = if (engaged) "engaged" else "disengaged"
         val readingsText = if (readings.isEmpty()) "(no readings set)" else readings.entries.joinToString { "${it.key}=${it.value}" }
         return "$addr  $state  $readingsText"
